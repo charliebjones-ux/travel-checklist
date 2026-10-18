@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Partner Packing">
+<title>Partner Packing</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: #0f0e0d;
+    font-family: Georgia, 'Times New Roman', serif;
+    color: #e8e0d5;
+    padding-bottom: 80px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .header {
+    border-bottom: 1px solid #2a2520;
+    padding: max(32px, env(safe-area-inset-top)) 24px 20px;
+    position: sticky;
+    top: 0;
+    background: #0f0e0d;
+    z-index: 10;
+  }
+  .header-inner { max-width: 520px; margin: 0 auto; }
+  .eyebrow-row { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px; }
+  .eyebrow { font-size: 11px; letter-spacing: 0.2em; color: #7a6f65; text-transform: uppercase; font-family: monospace; }
+  .save-status { font-size: 10px; font-family: monospace; letter-spacing: 0.1em; color: #3a3028; transition: color 0.3s; }
+  .save-status.saved { color: #7ec87e; }
+  .save-status.error { color: #e87e7e; }
+  h1 {
+    font-size: 26px; font-weight: 700; margin: 4px 0 14px;
+    cursor: text; letter-spacing: -0.02em; color: #f0ebe3;
+    border: none; background: transparent; padding: 0;
+  }
+  h1:focus { outline: none; border-bottom: 1px solid #c8a96e; }
+  .progress-row { display: flex; align-items: center; gap: 12px; }
+  .progress-track { flex: 1; height: 4px; background: #2a2520; border-radius: 2px; overflow: hidden; }
+  .progress-fill { height: 100%; background: #c8a96e; border-radius: 2px; transition: width 0.3s ease; }
+  .progress-fill.done { background: #7ec87e; }
+  .progress-label { font-size: 13px; color: #9a8f85; font-family: monospace; min-width: 70px; text-align: right; }
+  .btn-row { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  .btn {
+    background: #2a2520; color: #7a6f65; border: 1px solid #3a3028; border-radius: 4px;
+    padding: 5px 12px; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+    cursor: pointer; font-family: monospace;
+  }
+  .sections { max-width: 520px; margin: 0 auto; padding: 24px 24px 0; }
+  .section-header {
+    width: 100%; display: flex; align-items: center; justify-content: space-between;
+    background: transparent; border: none; border-top: 1px solid #2a2520;
+    padding: 14px 0; cursor: pointer; color: #e8e0d5; font: inherit;
+  }
+  .section-header.done { color: #7a9a7a; }
+  .section-left { display: flex; align-items: center; gap: 10px; }
+  .section-icon { font-size: 18px; }
+  .section-label { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; font-family: monospace; font-weight: 600; color: #c8a96e; }
+  .section-label.done { color: #7a9a7a; }
+  .section-right { display: flex; align-items: center; gap: 10px; }
+  .section-count { font-size: 12px; color: #5a5048; font-family: monospace; }
+  .chevron { font-size: 12px; color: #5a5048; transition: transform 0.2s; display: inline-block; }
+  .chevron.collapsed { transform: rotate(-90deg); }
+  .item-list { padding-bottom: 8px; }
+  .item-row {
+    display: flex; align-items: center; gap: 12px; padding: 8px 4px;
+    cursor: pointer; border-radius: 4px;
+  }
+  .checkbox {
+    width: 18px; height: 18px; border-radius: 3px; border: 1.5px solid #4a4035;
+    flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+  }
+  .checkbox.checked { background: #c8a96e; border: none; }
+  .item-label { font-size: 15px; color: #c8bfb5; user-select: none; transition: all 0.15s; }
+  .item-label.checked { color: #4a4035; text-decoration: line-through; }
+  .all-packed {
+    margin-top: 24px; padding: 16px 20px; background: #1a2a1a; border-radius: 8px;
+    border: 1px solid #3a6a3a; text-align: center; color: #7ec87e; font-size: 14px;
+    letter-spacing: 0.05em; font-family: monospace; display: none;
+  }
+  .all-packed.show { display: block; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-inner">
+    <div class="eyebrow-row">
+      <span class="eyebrow">TRAVEL CHECKLIST</span>
+      <span class="save-status" id="saveStatus">●</span>
+    </div>
+    <h1 id="tripName" contenteditable="true" spellcheck="false">Partner's Trip ✏️</h1>
+    <div class="progress-row">
+      <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+      <span class="progress-label" id="progressLabel">0/0 · 0%</span>
+    </div>
+    <div class="btn-row">
+      <button class="btn" id="resetBtn">Reset</button>
+      <button class="btn" id="checkAllBtn">Check all</button>
+    </div>
+  </div>
+</div>
+
+<div class="sections" id="sections"></div>
+
+<script>
+const SECTIONS = [
+  { id: "hygiene", label: "Personal Hygiene", icon: "🧴", items: [
+    { id: "toothbrush", label: "Toothbrush and Case" },
+    { id: "floss", label: "Floss" },
+    { id: "aquaphor", label: "Aquaphor" },
+    { id: "sunscreen", label: "Sunscreen" },
+    { id: "razor", label: "Razor" },
+    { id: "soap", label: "Soap in a bag" },
+    { id: "allmeds", label: "All Meds" },
+  ]},
+  { id: "refill", label: "Refill Bottles", icon: "🫙", items: [
+    { id: "facecleanser", label: "Face cleanser" },
+    { id: "facemoisturizer", label: "Face moisturizer" },
+    { id: "shampoo", label: "Shampoo" },
+    { id: "conditioner", label: "Conditioner" },
+    { id: "lotion", label: "Lotion" },
+    { id: "handlotion", label: "Hand lotion" },
+    { id: "toothpaste", label: "Toothpaste" },
+  ]},
+  { id: "clothing", label: "Clothing", icon: "👕", items: [
+    { id: "worktops", label: "Work tops" },
+    { id: "workbottoms", label: "Work bottoms" },
+    { id: "jeans", label: "Jeans" },
+    { id: "underwear", label: "Underwear" },
+    { id: "socks", label: "Socks" },
+    { id: "shorts", label: "Shorts" },
+    { id: "swim", label: "Swim" },
+    { id: "workout", label: "Workout wear" },
+    { id: "jacket", label: "Jacket" },
+    { id: "dirtybag", label: "Dirty clothes bag" },
+  ]},
+  { id: "footwear", label: "Footwear", icon: "👟", items: [
+    { id: "running", label: "Running and workout" },
+    { id: "workshoes", label: "Work shoes" },
+    { id: "flipflops", label: "Flip flops" },
+  ]},
+  { id: "workbag", label: "Work Bag Contents", icon: "💼", items: [
+    { id: "computer", label: "Computer" },
+    { id: "ipad", label: "iPad" },
+    { id: "earbuds", label: "Ear buds" },
+    { id: "chargingbag", label: "Charging bag" },
+    { id: "antibacterial", label: "Antibacterial wipes" },
+  ]},
+  { id: "misc", label: "Misc", icon: "✨", items: [
+    { id: "mints", label: "Mints" },
+    { id: "sunglasses", label: "Sunglasses" },
+    { id: "hat", label: "Hat" },
+  ]},
+];
+
+const STORAGE_KEY = "partner-travel-checklist-v1";
+const ALL_ITEMS = SECTIONS.flatMap(s => s.items);
+
+// ---- State ----
+let state = { checked: {}, tripName: "Partner's Trip", collapsed: {} };
+
+// ---- Load from localStorage ----
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      state.checked = parsed.checked || {};
+      state.tripName = parsed.tripName || "Partner's Trip";
+      state.collapsed = parsed.collapsed || {};
+    }
+    setSaveStatus("idle");
+  } catch (e) {
+    setSaveStatus("error");
+    console.error("localStorage load failed:", e);
+  }
+}
+
+// ---- Save to localStorage (debounced) ----
+let saveTimer = null;
+function save() {
+  setSaveStatus("saving");
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus("idle"), 1500);
+    } catch (e) {
+      setSaveStatus("error");
+      console.error("localStorage save failed:", e);
+    }
+  }, 300);
+}
+
+function setSaveStatus(status) {
+  const el = document.getElementById("saveStatus");
+  el.className = "save-status " + (status === "saved" ? "saved" : status === "error" ? "error" : "");
+  el.textContent = status === "saved" ? "✓ SAVED" : status === "error" ? "⚠ SAVE FAILED" : status === "saving" ? "SAVING…" : "●";
+}
+
+// ---- Render ----
+function render() {
+  const totalChecked = ALL_ITEMS.filter(i => state.checked[i.id]).length;
+  const totalItems = ALL_ITEMS.length;
+  const pct = totalItems ? Math.round((totalChecked / totalItems) * 100) : 0;
+
+  document.getElementById("tripName").textContent = state.tripName + " ✏️";
+  document.getElementById("progressLabel").textContent = `${totalChecked}/${totalItems} · ${pct}%`;
+  const fill = document.getElementById("progressFill");
+  fill.style.width = pct + "%";
+  fill.className = "progress-fill" + (pct === 100 ? " done" : "");
+
+  const container = document.getElementById("sections");
+  container.innerHTML = "";
+
+  SECTIONS.forEach(section => {
+    const sectionChecked = section.items.filter(i => state.checked[i.id]).length;
+    const isCollapsed = !!state.collapsed[section.id];
+    const sectionDone = sectionChecked === section.items.length;
+
+    const wrap = document.createElement("div");
+    wrap.style.marginBottom = "6px";
+
+    const header = document.createElement("button");
+    header.className = "section-header" + (sectionDone ? " done" : "");
+    header.innerHTML = `
+      <div class="section-left">
+        <span class="section-icon">${section.icon}</span>
+        <span class="section-label${sectionDone ? " done" : ""}">${section.label}</span>
+      </div>
+      <div class="section-right">
+        <span class="section-count">${sectionChecked}/${section.items.length}</span>
+        <span class="chevron${isCollapsed ? " collapsed" : ""}">▾</span>
+      </div>`;
+    header.onclick = () => {
+      state.collapsed[section.id] = !state.collapsed[section.id];
+      save();
+      render();
+    };
+    wrap.appendChild(header);
+
+    if (!isCollapsed) {
+      const list = document.createElement("div");
+      list.className = "item-list";
+      section.items.forEach(item => {
+        const isChecked = !!state.checked[item.id];
+        const row = document.createElement("div");
+        row.className = "item-row";
+        row.innerHTML = `
+          <div class="checkbox${isChecked ? " checked" : ""}">
+            ${isChecked ? '<svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="#0f0e0d" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ""}
+          </div>
+          <span class="item-label${isChecked ? " checked" : ""}">${item.label}</span>`;
+        row.onclick = () => {
+          state.checked[item.id] = !state.checked[item.id];
+          save();
+          render();
+        };
+        list.appendChild(row);
+      });
+      wrap.appendChild(list);
+    }
+
+    container.appendChild(wrap);
+  });
+
+  const allPacked = document.createElement("div");
+  allPacked.className = "all-packed" + (pct === 100 ? " show" : "");
+  allPacked.textContent = "✓ ALL PACKED. SAFE TRAVELS.";
+  container.appendChild(allPacked);
+}
+
+// ---- Controls ----
+document.getElementById("resetBtn").onclick = () => {
+  state.checked = {};
+  save();
+  render();
+};
+document.getElementById("checkAllBtn").onclick = () => {
+  ALL_ITEMS.forEach(i => state.checked[i.id] = true);
+  save();
+  render();
+};
+document.getElementById("tripName").addEventListener("blur", (e) => {
+  state.tripName = e.target.textContent.replace("✏️", "").trim() || "Partner's Trip";
+  save();
+  render();
+});
+document.getElementById("tripName").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); e.target.blur(); }
+});
+
+// ---- Init ----
+load();
+render();
+</script>
+</body>
+</html>
