@@ -15,7 +15,7 @@
     background: #0f0e0d;
     font-family: Georgia, 'Times New Roman', serif;
     color: #e8e0d5;
-    padding-bottom: 80px;
+    padding-bottom: 96px;
     -webkit-tap-highlight-color: transparent;
   }
   .header {
@@ -49,13 +49,23 @@
     padding: 5px 12px; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
     cursor: pointer; font-family: monospace;
   }
+  .btn.accent { color: #c8a96e; }
+  .btn.active { background: #c8a96e; color: #0f0e0d; border-color: #c8a96e; }
+  .btn.danger { color: #e87e7e; border-color: #4a2a22; }
+  .edit-panel {
+    margin-top: 12px; padding: 12px; border: 1px solid #2a2520; border-radius: 6px; background: #141210;
+  }
+  .edit-panel p { font-size: 12px; color: #7a6f65; font-family: monospace; margin: 0 0 10px; line-height: 1.5; }
+  textarea.backup {
+    width: 100%; min-height: 90px; background: #1a1815; border: 1px solid #3a3028; color: #e8e0d5;
+    font: 16px monospace; border-radius: 4px; padding: 8px; margin-top: 10px; resize: vertical;
+  }
   .sections { max-width: 520px; margin: 0 auto; padding: 24px 24px 0; }
   .section-header {
     width: 100%; display: flex; align-items: center; justify-content: space-between;
     background: transparent; border: none; border-top: 1px solid #2a2520;
     padding: 14px 0; cursor: pointer; color: #e8e0d5; font: inherit;
   }
-  .section-header.done { color: #7a9a7a; }
   .section-left { display: flex; align-items: center; gap: 10px; }
   .section-icon { font-size: 18px; }
   .section-label { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; font-family: monospace; font-weight: 600; color: #c8a96e; }
@@ -75,14 +85,40 @@
     transition: all 0.15s;
   }
   .checkbox.checked { background: #c8a96e; border: none; }
-  .item-label { font-size: 15px; color: #c8bfb5; user-select: none; transition: all 0.15s; }
+  .item-label { font-size: 15px; color: #c8bfb5; user-select: none; -webkit-user-select: none; transition: all 0.15s; }
   .item-label.checked { color: #4a4035; text-decoration: line-through; }
+  .edit-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+  .edit-input {
+    flex: 1; min-width: 0; background: #1a1815; border: 1px solid #3a3028; border-radius: 4px;
+    color: #e8e0d5; font: 16px Georgia, 'Times New Roman', serif; padding: 7px 9px;
+  }
+  .edit-input:focus { outline: none; border-color: #c8a96e; }
+  .del-btn {
+    background: none; border: 1px solid #4a2a22; color: #e87e7e; border-radius: 4px;
+    width: 36px; height: 36px; font-size: 18px; line-height: 1; flex-shrink: 0; cursor: pointer;
+  }
+  .add-form { display: flex; gap: 8px; padding: 8px 0 4px; }
+  .add-btn {
+    background: #2a2520; border: 1px solid #3a3028; color: #c8a96e; border-radius: 4px;
+    padding: 0 12px; height: 36px; font-family: monospace; font-size: 11px; letter-spacing: 0.1em;
+    text-transform: uppercase; cursor: pointer; flex-shrink: 0;
+  }
   .all-packed {
     margin-top: 24px; padding: 16px 20px; background: #1a2a1a; border-radius: 8px;
     border: 1px solid #3a6a3a; text-align: center; color: #7ec87e; font-size: 14px;
-    letter-spacing: 0.05em; font-family: monospace; display: none;
+    letter-spacing: 0.05em; font-family: monospace;
   }
-  .all-packed.show { display: block; }
+  .toast {
+    position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom));
+    transform: translateX(-50%); background: #2a2520; border: 1px solid #3a3028; color: #e8e0d5;
+    padding: 10px 14px; border-radius: 6px; font-family: monospace; font-size: 12px;
+    display: none; gap: 14px; align-items: center; z-index: 20; max-width: calc(100% - 32px);
+  }
+  .toast.show { display: flex; }
+  .toast button {
+    background: none; border: none; color: #c8a96e; font-family: monospace; font-size: 12px;
+    text-transform: uppercase; letter-spacing: 0.1em; cursor: pointer; padding: 0; flex-shrink: 0;
+  }
 </style>
 </head>
 <body>
@@ -93,7 +129,7 @@
       <span class="eyebrow">TRAVEL CHECKLIST</span>
       <span class="save-status" id="saveStatus">●</span>
     </div>
-    <h1 id="tripName" contenteditable="true" spellcheck="false">Work Trip ✏️</h1>
+    <h1 id="tripName" contenteditable="true" spellcheck="false"></h1>
     <div class="progress-row">
       <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
       <span class="progress-label" id="progressLabel">0/0 · 0%</span>
@@ -101,14 +137,37 @@
     <div class="btn-row">
       <button class="btn" id="resetBtn">Reset</button>
       <button class="btn" id="checkAllBtn">Check all</button>
+      <button class="btn accent" id="editBtn">Edit list</button>
     </div>
   </div>
 </div>
 
+<div style="padding:0 24px">
+    <div class="edit-panel" id="editPanel" hidden style="max-width:520px;margin:16px auto 0;">
+      <p>Edit mode: type over a name to rename it, × removes, add new items at the bottom of each section. Tap Done when finished.</p>
+      <div class="btn-row" style="margin-top:0">
+        <button class="btn accent" id="exportBtn">Copy backup</button>
+        <button class="btn accent" id="importBtn">Import backup</button>
+        <button class="btn danger" id="restoreBtn">Restore defaults</button>
+      </div>
+      <div id="importArea" hidden>
+        <textarea class="backup" id="importText" placeholder="Paste a backup here"></textarea>
+        <div class="btn-row">
+          <button class="btn accent" id="importApplyBtn">Apply backup</button>
+          <button class="btn" id="importCancelBtn">Cancel</button>
+        </div>
+      </div>
+    </div>
+</div>
 <div class="sections" id="sections"></div>
 
+<div class="toast" id="toast"><span id="toastMsg"></span><button id="toastUndo" hidden>Undo</button></div>
+
 <script>
-const SECTIONS = [
+// Default list. Edits made on the phone are stored as an overlay (added /
+// removed / renamed) on top of this, so a future update to the defaults
+// still shows up without wiping anyone's edits.
+const DEFAULT_SECTIONS = [
   { id: "hygiene", label: "Personal Hygiene", icon: "🧴", items: [
     { id: "toothbrush", label: "Toothbrush and Case" },
     { id: "floss", label: "Floss" },
@@ -183,31 +242,56 @@ const SECTIONS = [
     { id: "nic", label: "Nic" },
   ]},
 ];
-
 const STORAGE_KEY = "work-travel-checklist-v1";
-const ALL_ITEMS = SECTIONS.flatMap(s => s.items);
+const DEFAULT_TRIP = "Work Trip";
 
-// ---- State ----
-let state = { checked: {}, tripName: "Work Trip", collapsed: {} };
+function emptyEdits() { return { added: [], removed: {}, renamed: {} }; }
 
-// ---- Load from localStorage ----
+let state = { checked: {}, tripName: DEFAULT_TRIP, collapsed: {}, edits: emptyEdits() };
+let editMode = false;
+let lastUndo = null;
+let refocusSection = null;
+let toastTimer = null;
+
+function normalizeEdits(e) {
+  e = e && typeof e === "object" ? e : {};
+  return {
+    added: Array.isArray(e.added)
+      ? e.added.filter(a => a && typeof a.id === "string" && typeof a.section === "string" && typeof a.label === "string")
+      : [],
+    removed: e.removed && typeof e.removed === "object" ? e.removed : {},
+    renamed: e.renamed && typeof e.renamed === "object" ? e.renamed : {},
+  };
+}
+
+function getSections() {
+  const e = state.edits;
+  return DEFAULT_SECTIONS.map(s => {
+    const base = s.items.filter(i => !e.removed[i.id]).map(i => ({ id: i.id, label: e.renamed[i.id] || i.label, custom: false }));
+    const custom = e.added.filter(a => a.section === s.id).map(a => ({ id: a.id, label: e.renamed[a.id] || a.label, custom: true }));
+    return { id: s.id, label: s.label, icon: s.icon, items: base.concat(custom) };
+  });
+}
+function allItems() { return getSections().flatMap(s => s.items); }
+
+// ---- Persistence ----
 function load() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
-      const parsed = JSON.parse(raw);
-      state.checked = parsed.checked || {};
-      state.tripName = parsed.tripName || "Work Trip";
-      state.collapsed = parsed.collapsed || {};
+      const p = JSON.parse(raw);
+      state.checked = p.checked && typeof p.checked === "object" ? p.checked : {};
+      state.tripName = typeof p.tripName === "string" && p.tripName ? p.tripName : DEFAULT_TRIP;
+      state.collapsed = p.collapsed && typeof p.collapsed === "object" ? p.collapsed : {};
+      state.edits = normalizeEdits(p.edits);
     }
     setSaveStatus("idle");
-  } catch (e) {
+  } catch (err) {
     setSaveStatus("error");
-    console.error("localStorage load failed:", e);
+    console.error("load failed", err);
   }
 }
 
-// ---- Save to localStorage (debounced) ----
 let saveTimer = null;
 function save() {
   setSaveStatus("saving");
@@ -217,110 +301,262 @@ function save() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       setSaveStatus("saved");
       setTimeout(() => setSaveStatus("idle"), 1500);
-    } catch (e) {
+    } catch (err) {
       setSaveStatus("error");
-      console.error("localStorage save failed:", e);
+      console.error("save failed", err);
     }
-  }, 300);
+  }, 250);
 }
+// Flush a pending save if the app is backgrounded mid-debounce
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden" && saveTimer) {
+    clearTimeout(saveTimer);
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (err) {}
+  }
+});
 
 function setSaveStatus(status) {
   const el = document.getElementById("saveStatus");
-  el.className = "save-status " + (status === "saved" ? "saved" : status === "error" ? "error" : "");
+  el.className = "save-status" + (status === "saved" ? " saved" : status === "error" ? " error" : "");
   el.textContent = status === "saved" ? "✓ SAVED" : status === "error" ? "⚠ SAVE FAILED" : status === "saving" ? "SAVING…" : "●";
 }
 
+// ---- Toast with optional undo ----
+function showToast(msg, withUndo) {
+  document.getElementById("toastMsg").textContent = msg;
+  document.getElementById("toastUndo").hidden = !withUndo;
+  document.getElementById("toast").classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(hideToast, withUndo ? 6000 : 2500);
+}
+function hideToast() {
+  document.getElementById("toast").classList.remove("show");
+  if (!document.getElementById("toastUndo").hidden) lastUndo = null;
+}
+document.getElementById("toastUndo").onclick = () => {
+  if (lastUndo) { lastUndo(); lastUndo = null; save(); render(); }
+  clearTimeout(toastTimer);
+  document.getElementById("toast").classList.remove("show");
+};
+
+// ---- Edit operations ----
+function newId() { return "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+function addItem(sectionId, label) {
+  const v = label.trim();
+  if (!v) return;
+  state.edits.added.push({ id: newId(), section: sectionId, label: v });
+  refocusSection = sectionId;
+  save();
+  render();
+}
+
+function renameItem(item, value) {
+  const v = value.trim();
+  const e = state.edits;
+  if (!v) return false;
+  let def = null;
+  if (item.custom) {
+    const a = e.added.find(x => x.id === item.id);
+    def = a ? a.label : null;
+  } else {
+    for (const s of DEFAULT_SECTIONS) { const d = s.items.find(i => i.id === item.id); if (d) { def = d.label; break; } }
+  }
+  if (v === def) delete e.renamed[item.id]; else e.renamed[item.id] = v;
+  item.label = v;
+  save();
+  return true;
+}
+
+function deleteItem(item) {
+  const e = state.edits;
+  if (item.custom) {
+    const idx = e.added.findIndex(a => a.id === item.id);
+    if (idx < 0) return;
+    const rec = e.added[idx];
+    e.added.splice(idx, 1);
+    lastUndo = () => { state.edits.added.splice(Math.min(idx, state.edits.added.length), 0, rec); };
+  } else {
+    e.removed[item.id] = true;
+    lastUndo = () => { delete state.edits.removed[item.id]; };
+  }
+  save();
+  render();
+  showToast(`Removed “${item.label}”`, true);
+}
+
 // ---- Render ----
+function el(tag, props, children) {
+  const n = document.createElement(tag);
+  if (props) for (const k in props) {
+    if (k === "class") n.className = props[k];
+    else if (k === "text") n.textContent = props[k];
+    else if (k.startsWith("on")) n[k] = props[k];
+    else n.setAttribute(k, props[k]);
+  }
+  (children || []).forEach(c => c && n.appendChild(c));
+  return n;
+}
+
+function checkSvg() {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("width", "10"); svg.setAttribute("height", "8"); svg.setAttribute("viewBox", "0 0 10 8"); svg.setAttribute("fill", "none");
+  const p = document.createElementNS(ns, "path");
+  p.setAttribute("d", "M1 4L3.5 6.5L9 1"); p.setAttribute("stroke", "#0f0e0d"); p.setAttribute("stroke-width", "1.8");
+  p.setAttribute("stroke-linecap", "round"); p.setAttribute("stroke-linejoin", "round");
+  svg.appendChild(p);
+  return svg;
+}
+
 function render() {
-  const totalChecked = ALL_ITEMS.filter(i => state.checked[i.id]).length;
-  const totalItems = ALL_ITEMS.length;
+  const sections = getSections();
+  const items = sections.flatMap(s => s.items);
+  const totalChecked = items.filter(i => state.checked[i.id]).length;
+  const totalItems = items.length;
   const pct = totalItems ? Math.round((totalChecked / totalItems) * 100) : 0;
 
-  document.getElementById("tripName").textContent = state.tripName + " ✏️";
+  const title = document.getElementById("tripName");
+  if (document.activeElement !== title) title.textContent = state.tripName + " ✏️";
   document.getElementById("progressLabel").textContent = `${totalChecked}/${totalItems} · ${pct}%`;
   const fill = document.getElementById("progressFill");
   fill.style.width = pct + "%";
   fill.className = "progress-fill" + (pct === 100 ? " done" : "");
 
-  const container = document.getElementById("sections");
-  container.innerHTML = "";
+  const editBtn = document.getElementById("editBtn");
+  editBtn.textContent = editMode ? "Done" : "Edit list";
+  editBtn.classList.toggle("active", editMode);
+  document.getElementById("editPanel").hidden = !editMode;
+  if (!editMode) document.getElementById("importArea").hidden = true;
 
-  SECTIONS.forEach(section => {
+  const container = document.getElementById("sections");
+  container.replaceChildren();
+
+  sections.forEach(section => {
     const sectionChecked = section.items.filter(i => state.checked[i.id]).length;
     const isCollapsed = !!state.collapsed[section.id];
-    const sectionDone = sectionChecked === section.items.length;
+    const sectionDone = section.items.length > 0 && sectionChecked === section.items.length;
 
-    const wrap = document.createElement("div");
-    wrap.style.marginBottom = "6px";
-
-    const header = document.createElement("button");
-    header.className = "section-header" + (sectionDone ? " done" : "");
-    header.innerHTML = `
-      <div class="section-left">
-        <span class="section-icon">${section.icon}</span>
-        <span class="section-label${sectionDone ? " done" : ""}">${section.label}</span>
-      </div>
-      <div class="section-right">
-        <span class="section-count">${sectionChecked}/${section.items.length}</span>
-        <span class="chevron${isCollapsed ? " collapsed" : ""}">▾</span>
-      </div>`;
-    header.onclick = () => {
+    const header = el("button", { class: "section-header", onclick: () => {
       state.collapsed[section.id] = !state.collapsed[section.id];
-      save();
-      render();
-    };
-    wrap.appendChild(header);
+      save(); render();
+    }}, [
+      el("div", { class: "section-left" }, [
+        el("span", { class: "section-icon", text: section.icon }),
+        el("span", { class: "section-label" + (sectionDone ? " done" : ""), text: section.label }),
+      ]),
+      el("div", { class: "section-right" }, [
+        el("span", { class: "section-count", text: `${sectionChecked}/${section.items.length}` }),
+        el("span", { class: "chevron" + (isCollapsed ? " collapsed" : ""), text: "▾" }),
+      ]),
+    ]);
+
+    const wrap = el("div", { style: "margin-bottom:6px", "data-section": section.id }, [header]);
 
     if (!isCollapsed) {
-      const list = document.createElement("div");
-      list.className = "item-list";
+      const list = el("div", { class: "item-list" });
       section.items.forEach(item => {
-        const isChecked = !!state.checked[item.id];
-        const row = document.createElement("div");
-        row.className = "item-row";
-        row.innerHTML = `
-          <div class="checkbox${isChecked ? " checked" : ""}">
-            ${isChecked ? '<svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="#0f0e0d" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ""}
-          </div>
-          <span class="item-label${isChecked ? " checked" : ""}">${item.label}</span>`;
-        row.onclick = () => {
-          state.checked[item.id] = !state.checked[item.id];
-          save();
-          render();
-        };
-        list.appendChild(row);
+        if (editMode) {
+          const input = el("input", { class: "edit-input", type: "text", enterkeyhint: "done", "aria-label": "Item name" });
+          input.value = item.label;
+          // Save on change (fires on blur). No re-render here, so a tap on
+          // another control during blur isn't swallowed by a DOM rebuild.
+          input.onchange = () => { if (!renameItem(item, input.value)) input.value = item.label; };
+          input.onkeydown = (ev) => { if (ev.key === "Enter") { ev.preventDefault(); input.blur(); } };
+          const del = el("button", { class: "del-btn", "aria-label": "Remove " + item.label, text: "×", onclick: () => deleteItem(item) });
+          list.appendChild(el("div", { class: "edit-row" }, [input, del]));
+        } else {
+          const isChecked = !!state.checked[item.id];
+          const box = el("div", { class: "checkbox" + (isChecked ? " checked" : "") });
+          if (isChecked) box.appendChild(checkSvg());
+          const row = el("div", { class: "item-row", role: "checkbox", "aria-checked": String(isChecked), onclick: () => {
+            state.checked[item.id] = !state.checked[item.id];
+            save(); render();
+          }}, [box, el("span", { class: "item-label" + (isChecked ? " checked" : ""), text: item.label })]);
+          list.appendChild(row);
+        }
       });
+
+      if (editMode) {
+        const addInput = el("input", { class: "edit-input", type: "text", placeholder: "Add item…", enterkeyhint: "done", "data-add": section.id });
+        const form = el("form", { class: "add-form", onsubmit: (ev) => { ev.preventDefault(); addItem(section.id, addInput.value); } }, [
+          addInput,
+          el("button", { class: "add-btn", type: "submit", text: "Add" }),
+        ]);
+        list.appendChild(form);
+      }
       wrap.appendChild(list);
     }
-
     container.appendChild(wrap);
   });
 
-  const allPacked = document.createElement("div");
-  allPacked.className = "all-packed" + (pct === 100 ? " show" : "");
-  allPacked.textContent = "✓ ALL PACKED. SAFE TRAVELS.";
-  container.appendChild(allPacked);
+  if (!editMode && pct === 100) container.appendChild(el("div", { class: "all-packed", text: "✓ ALL PACKED. SAFE TRAVELS." }));
+
+  if (refocusSection) {
+    const inp = container.querySelector(`input[data-add="${refocusSection}"]`);
+    refocusSection = null;
+    if (inp) inp.focus();
+  }
 }
 
-// ---- Controls ----
-document.getElementById("resetBtn").onclick = () => {
-  state.checked = {};
-  save();
+// ---- Header controls ----
+document.getElementById("resetBtn").onclick = () => { state.checked = {}; save(); render(); };
+document.getElementById("checkAllBtn").onclick = () => { allItems().forEach(i => state.checked[i.id] = true); save(); render(); };
+document.getElementById("editBtn").onclick = () => {
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  editMode = !editMode;
   render();
 };
-document.getElementById("checkAllBtn").onclick = () => {
-  ALL_ITEMS.forEach(i => state.checked[i.id] = true);
-  save();
-  render();
+
+const titleEl = document.getElementById("tripName");
+titleEl.addEventListener("blur", (e) => {
+  state.tripName = e.target.textContent.replace("✏️", "").trim() || DEFAULT_TRIP;
+  save(); render();
+});
+titleEl.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); e.target.blur(); } });
+
+// ---- Backup / restore ----
+function backupPayload() {
+  return JSON.stringify({ v: 1, list: STORAGE_KEY, checked: state.checked, tripName: state.tripName, edits: state.edits });
+}
+document.getElementById("exportBtn").onclick = async () => {
+  const payload = backupPayload();
+  try {
+    await navigator.clipboard.writeText(payload);
+    showToast("Backup copied. Paste it into Notes.", false);
+  } catch (err) {
+    document.getElementById("importArea").hidden = false;
+    const t = document.getElementById("importText");
+    t.value = payload; t.focus(); t.select();
+    showToast("Clipboard blocked. Copy the text shown.", false);
+  }
 };
-document.getElementById("tripName").addEventListener("blur", (e) => {
-  state.tripName = e.target.textContent.replace("✏️", "").trim() || "Work Trip";
-  save();
-  render();
-});
-document.getElementById("tripName").addEventListener("keydown", (e) => {
-  if (e.key === "Enter") { e.preventDefault(); e.target.blur(); }
-});
+document.getElementById("importBtn").onclick = () => {
+  const area = document.getElementById("importArea");
+  area.hidden = !area.hidden;
+  if (!area.hidden) { document.getElementById("importText").value = ""; document.getElementById("importText").focus(); }
+};
+document.getElementById("importCancelBtn").onclick = () => { document.getElementById("importArea").hidden = true; };
+document.getElementById("importApplyBtn").onclick = () => {
+  let p;
+  try { p = JSON.parse(document.getElementById("importText").value); } catch (err) { showToast("That isn't a valid backup.", false); return; }
+  if (!p || typeof p !== "object" || (!p.edits && !p.checked)) { showToast("That isn't a valid backup.", false); return; }
+  if (p.list && p.list !== STORAGE_KEY && !confirm("This backup is from the other list. Import it here anyway?")) return;
+  state.checked = p.checked && typeof p.checked === "object" ? p.checked : {};
+  if (typeof p.tripName === "string" && p.tripName) state.tripName = p.tripName;
+  state.edits = normalizeEdits(p.edits);
+  lastUndo = null;
+  document.getElementById("importArea").hidden = true;
+  save(); render();
+  showToast("Backup restored.", false);
+};
+document.getElementById("restoreBtn").onclick = () => {
+  if (!confirm("Restore the default list? Items you added, removed or renamed will be reset. Checkmarks are kept.")) return;
+  state.edits = emptyEdits();
+  lastUndo = null;
+  save(); render();
+  showToast("Default list restored.", false);
+};
 
 // ---- Init ----
 load();
