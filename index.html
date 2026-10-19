@@ -103,6 +103,17 @@
     padding: 0 12px; height: 36px; font-family: monospace; font-size: 11px; letter-spacing: 0.1em;
     text-transform: uppercase; cursor: pointer; flex-shrink: 0;
   }
+  .section-edit {
+    display: flex; align-items: center; gap: 8px; padding: 14px 0 8px; border-top: 1px solid #2a2520;
+  }
+  .icon-input { flex: 0 0 52px; text-align: center; font-size: 20px; padding: 5px 0; }
+  .section-name-input {
+    color: #c8a96e; font: 600 16px monospace; letter-spacing: 0.06em; text-transform: uppercase;
+  }
+  .new-section { border-top: 1px solid #2a2520; padding: 14px 0 0; margin-top: 6px; }
+  .new-section-label {
+    font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase; font-family: monospace; color: #7a6f65;
+  }
   .all-packed {
     margin-top: 24px; padding: 16px 20px; background: #1a2a1a; border-radius: 8px;
     border: 1px solid #3a6a3a; text-align: center; color: #7ec87e; font-size: 14px;
@@ -144,7 +155,7 @@
 
 <div style="padding:0 24px">
     <div class="edit-panel" id="editPanel" hidden style="max-width:520px;margin:16px auto 0;">
-      <p>Edit mode: type over a name to rename it, × removes, add new items at the bottom of each section. Tap Done when finished.</p>
+      <p>Edit mode: type over any item or category name (or icon) to change it, × removes, add items at the bottom of each section and new categories at the very bottom. Tap Done when finished.</p>
       <div class="btn-row" style="margin-top:0">
         <button class="btn accent" id="exportBtn">Copy backup</button>
         <button class="btn accent" id="importBtn">Import backup</button>
@@ -245,7 +256,10 @@ const DEFAULT_SECTIONS = [
 const STORAGE_KEY = "work-travel-checklist-v1";
 const DEFAULT_TRIP = "Work Trip";
 
-function emptyEdits() { return { added: [], removed: {}, renamed: {} }; }
+function emptyEdits() {
+  return { added: [], removed: {}, renamed: {}, addedSections: [], sectionRemoved: {}, sectionRenamed: {} };
+}
+const DEFAULT_ICON = "📦";
 
 let state = { checked: {}, tripName: DEFAULT_TRIP, collapsed: {}, edits: emptyEdits() };
 let editMode = false;
@@ -261,16 +275,31 @@ function normalizeEdits(e) {
       : [],
     removed: e.removed && typeof e.removed === "object" ? e.removed : {},
     renamed: e.renamed && typeof e.renamed === "object" ? e.renamed : {},
+    addedSections: Array.isArray(e.addedSections)
+      ? e.addedSections.filter(s => s && typeof s.id === "string" && typeof s.label === "string")
+      : [],
+    sectionRemoved: e.sectionRemoved && typeof e.sectionRemoved === "object" ? e.sectionRemoved : {},
+    sectionRenamed: e.sectionRenamed && typeof e.sectionRenamed === "object" ? e.sectionRenamed : {},
   };
 }
 
 function getSections() {
   const e = state.edits;
-  return DEFAULT_SECTIONS.map(s => {
+  const defs = DEFAULT_SECTIONS.map(s => ({ id: s.id, label: s.label, icon: s.icon, items: s.items, custom: false }));
+  const extra = e.addedSections.map(s => ({ id: s.id, label: s.label, icon: s.icon || DEFAULT_ICON, items: [], custom: true }));
+  return defs.concat(extra).filter(s => !e.sectionRemoved[s.id]).map(s => {
+    const o = e.sectionRenamed[s.id] || {};
     const base = s.items.filter(i => !e.removed[i.id]).map(i => ({ id: i.id, label: e.renamed[i.id] || i.label, custom: false }));
     const custom = e.added.filter(a => a.section === s.id).map(a => ({ id: a.id, label: e.renamed[a.id] || a.label, custom: true }));
-    return { id: s.id, label: s.label, icon: s.icon, items: base.concat(custom) };
+    return { id: s.id, label: o.label || s.label, icon: o.icon || s.icon, custom: s.custom, items: base.concat(custom) };
   });
+}
+
+function sectionDefaults(id) {
+  const d = DEFAULT_SECTIONS.find(s => s.id === id);
+  if (d) return { label: d.label, icon: d.icon };
+  const a = state.edits.addedSections.find(s => s.id === id);
+  return a ? { label: a.label, icon: a.icon || DEFAULT_ICON } : null;
 }
 function allItems() { return getSections().flatMap(s => s.items); }
 
@@ -385,6 +414,56 @@ function deleteItem(item) {
   showToast(`Removed “${item.label}”`, true);
 }
 
+function addSection(label, icon) {
+  const v = label.trim();
+  if (!v) return false;
+  const id = newId();
+  state.edits.addedSections.push({ id, label: v, icon: icon.trim() || DEFAULT_ICON });
+  refocusSection = id; // jump straight to adding its first item
+  save();
+  render();
+  return true;
+}
+
+// field is "label" or "icon". Like item renames, no re-render here.
+function editSection(sectionId, field, value) {
+  const v = value.trim();
+  if (field === "label" && !v) return false;
+  const e = state.edits;
+  const def = sectionDefaults(sectionId);
+  if (!def) return false;
+  const custom = e.addedSections.find(s => s.id === sectionId);
+  if (custom) {
+    custom[field] = v || DEFAULT_ICON;
+  } else {
+    const o = Object.assign({}, e.sectionRenamed[sectionId]);
+    if (!v || v === def[field]) delete o[field]; else o[field] = v;
+    if (Object.keys(o).length) e.sectionRenamed[sectionId] = o; else delete e.sectionRenamed[sectionId];
+  }
+  save();
+  return true;
+}
+
+function deleteSection(section) {
+  const n = section.items.length;
+  if (n && !confirm(`Delete “${section.label}” and its ${n} item${n === 1 ? "" : "s"}?`)) return;
+  const e = state.edits;
+  if (section.custom) {
+    const idx = e.addedSections.findIndex(s => s.id === section.id);
+    if (idx < 0) return;
+    const rec = e.addedSections[idx];
+    e.addedSections.splice(idx, 1);
+    // Its items stay in storage (hidden) so Undo brings them back intact.
+    lastUndo = () => { state.edits.addedSections.splice(Math.min(idx, state.edits.addedSections.length), 0, rec); };
+  } else {
+    e.sectionRemoved[section.id] = true;
+    lastUndo = () => { delete state.edits.sectionRemoved[section.id]; };
+  }
+  save();
+  render();
+  showToast(`Removed “${section.label}”`, true);
+}
+
 // ---- Render ----
 function el(tag, props, children) {
   const n = document.createElement(tag);
@@ -407,6 +486,18 @@ function checkSvg() {
   p.setAttribute("stroke-linecap", "round"); p.setAttribute("stroke-linejoin", "round");
   svg.appendChild(p);
   return svg;
+}
+
+function sectionEditHeader(section) {
+  const iconIn = el("input", { class: "edit-input icon-input", type: "text", "aria-label": "Category icon for " + section.label });
+  iconIn.value = section.icon;
+  iconIn.onchange = () => { editSection(section.id, "icon", iconIn.value); if (!iconIn.value.trim()) iconIn.value = sectionDefaults(section.id).icon; };
+  const nameIn = el("input", { class: "edit-input section-name-input", type: "text", enterkeyhint: "done", "aria-label": "Category name" });
+  nameIn.value = section.label;
+  nameIn.onchange = () => { if (!editSection(section.id, "label", nameIn.value)) nameIn.value = section.label; };
+  [iconIn, nameIn].forEach(i => i.onkeydown = (ev) => { if (ev.key === "Enter") { ev.preventDefault(); i.blur(); } });
+  const del = el("button", { class: "del-btn", "aria-label": "Remove category " + section.label, text: "×", onclick: () => deleteSection(section) });
+  return el("div", { class: "section-edit" }, [iconIn, nameIn, del]);
 }
 
 function render() {
@@ -434,10 +525,11 @@ function render() {
 
   sections.forEach(section => {
     const sectionChecked = section.items.filter(i => state.checked[i.id]).length;
-    const isCollapsed = !!state.collapsed[section.id];
+    // Edit mode ignores collapse so every section's add box is reachable.
+    const isCollapsed = !editMode && !!state.collapsed[section.id];
     const sectionDone = section.items.length > 0 && sectionChecked === section.items.length;
 
-    const header = el("button", { class: "section-header", onclick: () => {
+    const header = editMode ? sectionEditHeader(section) : el("button", { class: "section-header", onclick: () => {
       state.collapsed[section.id] = !state.collapsed[section.id];
       save(); render();
     }}, [
@@ -489,6 +581,17 @@ function render() {
     }
     container.appendChild(wrap);
   });
+
+  if (editMode) {
+    const iconIn = el("input", { class: "edit-input icon-input", type: "text", placeholder: DEFAULT_ICON, "aria-label": "New category icon", id: "newSectionIcon" });
+    const nameIn = el("input", { class: "edit-input", type: "text", placeholder: "New category…", enterkeyhint: "done", "aria-label": "New category name", id: "newSectionName" });
+    container.appendChild(el("div", { class: "new-section" }, [
+      el("div", { class: "new-section-label", text: "Add a category" }),
+      el("form", { class: "add-form", onsubmit: (ev) => { ev.preventDefault(); addSection(nameIn.value, iconIn.value); } }, [
+        iconIn, nameIn, el("button", { class: "add-btn", type: "submit", text: "Add" }),
+      ]),
+    ]));
+  }
 
   if (!editMode && pct === 100) container.appendChild(el("div", { class: "all-packed", text: "✓ ALL PACKED. SAFE TRAVELS." }));
 
